@@ -5,13 +5,15 @@ const w = window.innerWidth;
 const h = window.innerHeight;
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(w, h);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 const fov = 75;
 const aspect = w / h;
 const near = 0.1;
-const far = 10;
+const far = 100; //Value to ensure visibility when zooming out
 const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
-camera.position.z = 3;
+camera.position.z = 10;
 const scene = new THREE.Scene();
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -19,7 +21,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.03;
 const geo = new THREE.IcosahedronGeometry(1.0, 12);
 const mat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: 0xffd700, 
     flatShading: true,
 });
 const mesh = new THREE.Mesh(geo, mat);
@@ -36,50 +38,95 @@ mesh.add(wireMesh);
 const hemiLight = new THREE.HemisphereLight(0x0099ff, 0xaa5500);
 scene.add(hemiLight);
 
-const clock = new THREE.Clock(); // Create a clock instance
+// Update the Sun
+const sunGeo = new THREE.SphereGeometry(1.0, 32, 32); //Sun
+const sunMat = new THREE.MeshStandardMaterial({ color: 0xffd700 }); // Yellow Sun
+const sun = new THREE.Mesh(sunGeo, sunMat);
+sun.castShadow = true;
+sun.receiveShadow = true;
 
+// Configure shadow properties for the Sun
+const sunLight = new THREE.PointLight(0xffd700, 1, 50);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 0.1;
+sunLight.shadow.camera.far = 50;
+sun.add(sunLight);
+
+// Create a parent object to hold the entire solar system
+const solarSystem = new THREE.Object3D();
+solarSystem.rotation.x = THREE.MathUtils.degToRad(23.5); // Adjust tilt to 23.5 degrees
+scene.add(solarSystem);
+
+// Add the Sun and planets to the solar system
+solarSystem.add(sun);
+
+// Update planets to match the solar system
+const planets = [];
+const planetData = [
+    { name: "Mercury", size: 0.1, distance: 2.0, color: 0xaaaaaa, speed: 0.02 },
+    { name: "Venus", size: 0.2, distance: 3.0, color: 0xffcc99, speed: 0.015 },
+    { name: "Earth", size: 0.25, distance: 4.0, color: 0x0000ff, speed: 0.01 },
+    { name: "Mars", size: 0.15, distance: 5.0, color: 0xff4500, speed: 0.008 },
+    { name: "Jupiter", size: 0.5, distance: 7.0, color: 0xffa500, speed: 0.005 },
+    { name: "Saturn", size: 0.4, distance: 9.0, color: 0xffd27f, speed: 0.004 },
+    { name: "Uranus", size: 0.35, distance: 11.0, color: 0x87ceeb, speed: 0.003 },
+    { name: "Neptune", size: 0.35, distance: 13.0, color: 0x4682b4, speed: 0.002 },
+];
+
+planetData.forEach((data) => {
+    const planetGeo = new THREE.SphereGeometry(data.size, 32, 32);
+    const planetMat = new THREE.MeshStandardMaterial({ color: data.color });
+    const planet = new THREE.Mesh(planetGeo, planetMat);
+
+    planet.castShadow = true;
+    planet.receiveShadow = true;
+
+    const orbit = new THREE.Object3D();
+    orbit.add(planet);
+    planet.position.x = data.distance;
+
+    // Add white circular path for the planet's orbit
+    const orbitPathGeo = new THREE.RingGeometry(data.distance - 0.01, data.distance + 0.01, 64);
+    const orbitPathMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+    });
+    const orbitPath = new THREE.Mesh(orbitPathGeo, orbitPathMat);
+    orbitPath.rotation.x = Math.PI / 2; // Align the orbit path to the solar system's plane
+    solarSystem.add(orbitPath);
+
+    // Add rings to Saturn
+    if (data.name === "Saturn") {
+        const ringGeo = new THREE.RingGeometry(0.5, 0.8, 64);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffd27f,
+            side: THREE.DoubleSide,
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2; // Tilt the ring
+        planet.add(ring);
+    }
+
+    solarSystem.add(orbit);
+    planets.push({ planet, orbit, speed: data.speed });
+});
+
+// Update the animation loop to simulate orbits
 function animate(t = 0) {
     requestAnimationFrame(animate);
-    const delta = clock.getDelta(); // Get delta time
-    mesh.rotation.y = t * 0.0001;
-    animateSmallerGlobes(delta); // Call the function to animate smaller globes
+
+    // Rotate the Sun
+    sun.rotation.y = t * 0.0001;
+
+    // Update planet orbits
+    planets.forEach(({ orbit, speed }) => {
+        orbit.rotation.y += speed;
+    });
+
+    mesh.rotation.y = t * 0.0001; // Rotate the main globe if needed
     renderer.render(scene, camera);
     controls.update();
 }
 animate();
-
-// Create a function to create a smaller globe
-function createSmallerGlobe(radius, position) {
-  const smallerGeo = new THREE.IcosahedronGeometry(0.2, 1);
-  const smallerMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    flatShading: true,
-  });
-  const smallerMesh = new THREE.Mesh(smallerGeo, smallerMat);
-  smallerMesh.position.copy(position);
-  const smallerGlobe = new THREE.Object3D();
-  smallerGlobe.add(smallerMesh);
-  return smallerGlobe;
-}
-
-// Create 5 smaller globes around the main globe
-const smallerGlobes = [];
-for (let i = 0; i < 6; i++) {
-  const angle = i * Math.PI * 2 / 6;
-  const radius = 0.5; // radius of the smaller globe
-  const position = new THREE.Vector3(Math.cos(angle) * 2, Math.sin(angle) * 2, 0);
-  const smallerGlobe = createSmallerGlobe(radius, position);
-  scene.add(smallerGlobe);
-  smallerGlobes.push(smallerGlobe); // Fixed duplicate creation
-}
-
-// Create a function to animate the smaller globes
-function animateSmallerGlobes(delta) {
-  smallerGlobes.forEach((smallerGlobe, i) => {
-    const angle = i * Math.PI * 2 / 6 + clock.getElapsedTime() * 0.1; // Use clock instance
-    smallerGlobe.position.x = Math.cos(angle) * 2;
-    smallerGlobe.position.y = Math.sin(angle) * 2;
-    smallerGlobe.position.z = 0;
-    smallerGlobe.rotation.y = clock.getElapsedTime() * 0.1; // Update rotation
-  });
-}
