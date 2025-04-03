@@ -33,14 +33,44 @@ const wireMat = new THREE.MeshBasicMaterial({
 });
 const wireMesh = new THREE.Mesh(geo, wireMat);
 wireMesh.scale.setScalar(1.001);
-mesh.add(wireMesh);
+// mesh.add(wireMesh); // Commented out to disable the mesh on the Sun
 
 const hemiLight = new THREE.HemisphereLight(0x0099ff, 0xaa5500);
 scene.add(hemiLight);
 
+// Create a starfield
+function createStarfield() {
+    const starCount = 10000; // Number of stars
+    const starGeometry = new THREE.BufferGeometry();
+    const starPositions = new Float32Array(starCount * 3);
+
+    for (let i = 0; i < starCount; i++) {
+        starPositions[i * 3] = (Math.random() - 0.5) * 200; // X position
+        starPositions[i * 3 + 1] = (Math.random() - 0.5) * 200; // Y position
+        starPositions[i * 3 + 2] = (Math.random() - 0.5) * 200; // Z position
+    }
+
+    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+    const starMaterial = new THREE.PointsMaterial({
+        color: 0xffffff,
+        size: 0.1,
+    });
+
+    const stars = new THREE.Points(starGeometry, starMaterial);
+    scene.add(stars);
+}
+
+// Call the function to add stars to the scene
+createStarfield();
+
 // Update the Sun
 const sunGeo = new THREE.SphereGeometry(1.0, 32, 32); //Sun
-const sunMat = new THREE.MeshStandardMaterial({ color: 0xffd700 }); // Yellow Sun
+const sunMat = new THREE.MeshStandardMaterial({ 
+    color: 0xffd700, // Base yellow color
+    emissive: 0xff4500, // Add a burning orange glow
+    emissiveIntensity: 0.5, // Control the intensity of the glow
+    flatShading: false // Smooth shading for a more realistic look
+});
 const sun = new THREE.Mesh(sunGeo, sunMat);
 sun.castShadow = true;
 sun.receiveShadow = true;
@@ -75,9 +105,18 @@ const planetData = [
     { name: "Neptune", size: 0.35, distance: 13.0, color: 0x4682b4, speed: 0.002 },
 ];
 
+const textureLoader = new THREE.TextureLoader();
+const earthTexture = textureLoader.load('textures/earth_diffuse.jpg'); // Add Earth diffuse texture
+const earthBumpMap = textureLoader.load('textures/earth_bump.jpg'); // Add Earth bump map
+
 planetData.forEach((data) => {
     const planetGeo = new THREE.SphereGeometry(data.size, 32, 32);
-    const planetMat = new THREE.MeshStandardMaterial({ color: data.color });
+    const planetMat = new THREE.MeshStandardMaterial({ 
+        color: data.color,
+        map: data.name === "Earth" ? earthTexture : null, // Apply texture to Earth
+        bumpMap: data.name === "Earth" ? earthBumpMap : null, // Apply bump map to Earth
+        bumpScale: data.name === "Earth" ? 0.05 : 0 // Adjust bump scale for Earth
+    });
     const planet = new THREE.Mesh(planetGeo, planetMat);
 
     planet.castShadow = true;
