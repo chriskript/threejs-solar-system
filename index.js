@@ -41,26 +41,26 @@ wireMesh.scale.setScalar(1.001);
 const hemiLight = new THREE.HemisphereLight(0x0099ff, 0xaa5500);
 scene.add(hemiLight);
 
-// Create a starfield
+// Create a starfield using instanced rendering
 function createStarfield() {
     const starCount = 10000; // Number of stars
-    const starGeometry = new THREE.BufferGeometry();
-    const starPositions = new Float32Array(starCount * 3);
+    const starGeometry = new THREE.SphereGeometry(0.05, 8, 8); // Small sphere for stars
+    const starMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+    const starMesh = new THREE.InstancedMesh(starGeometry, starMaterial, starCount);
+    const dummy = new THREE.Object3D();
 
     for (let i = 0; i < starCount; i++) {
-        starPositions[i * 3] = (Math.random() - 0.5) * 200; // X position
-        starPositions[i * 3 + 1] = (Math.random() - 0.5) * 200; // Y position
-        starPositions[i * 3 + 2] = (Math.random() - 0.5) * 200; // Z position
+        dummy.position.set(
+            (Math.random() - 0.5) * 200, // X position
+            (Math.random() - 0.5) * 200, // Y position
+            (Math.random() - 0.5) * 200  // Z position
+        );
+        dummy.updateMatrix();
+        starMesh.setMatrixAt(i, dummy.matrix);
     }
 
-    starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-    const starMaterial = new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 0.1,
-    });
-
-    const stars = new THREE.Points(starGeometry, starMaterial);
-    scene.add(stars);
+    scene.add(starMesh);
 }
 
 // Call the function to add stars to the scene
